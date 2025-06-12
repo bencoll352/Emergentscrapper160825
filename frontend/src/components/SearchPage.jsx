@@ -7,13 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Search, Download, MapPin, Phone, Mail, Globe, Building2 } from "lucide-react";
+import { Search, Download, MapPin, Phone, Mail, Globe, Building2, Star } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
-import { mockData } from "../utils/mockData";
+import axios from "axios";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
 
 const SearchPage = () => {
   const [searchLocation, setSearchLocation] = useState("");
-  const [selectedTrade, setSelectedTrade] = useState("");
+  const [selectedTrades, setSelectedTrades] = useState([]);
   const [radius, setRadius] = useState("20");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,38 +24,46 @@ const SearchPage = () => {
   const { toast } = useToast();
 
   const tradeTypes = [
-    "All Trades",
-    "Carpenters & Joiners",
-    "General Builders",
-    "Groundworkers",
-    "Bricklayers & Stonemasons",
-    "Roofing Specialists",
-    "Interior Designers",
-    "Property Maintenance",
-    "Plasterers",
-    "Landscapers",
-    "Electricians",
-    "Plumbers",
-    "Heating Engineers",
-    "Decorators",
-    "Tilers",
-    "Kitchen Fitters"
+    { value: "carpenter", label: "Carpenters & Joiners" },
+    { value: "builder", label: "General Builders" },
+    { value: "electrician", label: "Electricians" },
+    { value: "plumber", label: "Plumbers" },
+    { value: "roofer", label: "Roofing Specialists" },
+    { value: "painter", label: "Decorators" },
+    { value: "landscaper", label: "Landscapers" },
+    { value: "plasterer", label: "Plasterers" },
+    { value: "groundworker", label: "Groundworkers" },
+    { value: "bricklayer", label: "Bricklayers & Stonemasons" },
+    { value: "heating_engineer", label: "Heating Engineers" },
+    { value: "kitchen_fitter", label: "Kitchen Fitters" },
+    { value: "bathroom_fitter", label: "Bathroom Fitters" },
+    { value: "tiler", label: "Tilers" }
   ];
+
+  const handleTradeSelection = (tradeValue) => {
+    setSelectedTrades(prev => {
+      if (prev.includes(tradeValue)) {
+        return prev.filter(trade => trade !== tradeValue);
+      } else {
+        return [...prev, tradeValue];
+      }
+    });
+  };
 
   const handleSearch = async () => {
     if (!searchLocation.trim()) {
       toast({
         title: "Location Required",
-        description: "Please enter a location to search",
+        description: "Please enter a UK location or postcode to search",
         variant: "destructive",
       });
       return;
     }
 
-    if (!selectedTrade) {
+    if (selectedTrades.length === 0) {
       toast({
-        title: "Trade Type Required",
-        description: "Please select a trade type",
+        title: "Trade Type Required", 
+        description: "Please select at least one trade type",
         variant: "destructive",
       });
       return;
@@ -61,21 +72,39 @@ const SearchPage = () => {
     setIsLoading(true);
     setSearchPerformed(false);
 
-    // Simulate API call with mock data
-    setTimeout(() => {
-      const filteredResults = selectedTrade === "All Trades" 
-        ? mockData 
-        : mockData.filter(item => item.primaryIndustry === selectedTrade);
+    try {
+      const radiusInMeters = parseInt(radius) * 1609.34; // Convert miles to meters
       
-      setSearchResults(filteredResults);
-      setSearchPerformed(true);
-      setIsLoading(false);
+      const searchData = {
+        location: searchLocation,
+        radius: radiusInMeters,
+        business_types: selectedTrades,
+        max_results: 50
+      };
+
+      const response = await axios.post(`${API}/search-businesses`, searchData);
       
+      if (response.data.success) {
+        setSearchResults(response.data.businesses);
+        setSearchPerformed(true);
+        
+        toast({
+          title: "Search Complete",
+          description: `Found ${response.data.businesses.length} businesses in ${searchLocation}`,
+        });
+      } else {
+        throw new Error("Search failed");
+      }
+    } catch (error) {
+      console.error("Search error:", error);
       toast({
-        title: "Search Complete",
-        description: `Found ${filteredResults.length} businesses in ${searchLocation}`,
+        title: "Search Failed",
+        description: error.response?.data?.detail || "Failed to search for businesses. Please try again.",
+        variant: "destructive",
       });
-    }, 2000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const exportToCSV = () => {
@@ -90,7 +119,7 @@ const SearchPage = () => {
 
     const headers = [
       "Company Name",
-      "Tradesperson Name",
+      "Tradesperson Name", 
       "Primary Industry",
       "Full Address",
       "Postcode",
@@ -98,23 +127,27 @@ const SearchPage = () => {
       "Phone Number",
       "Email Address",
       "Source URL",
-      "Date of Scraping"
+      "Date of Scraping",
+      "Rating",
+      "Total Ratings"
     ];
 
     const csvContent = [
       headers.join(","),
       ...searchResults.map(row =>
         [
-          `"${row.companyName || ''}"`,
-          `"${row.tradespersonName || ''}"`,
-          `"${row.primaryIndustry || ''}"`,
-          `"${row.fullAddress || ''}"`,
+          `"${row.company_name || ''}"`,
+          `"${row.tradesperson_name || ''}"`,
+          `"${row.primary_industry || ''}"`,
+          `"${row.full_address || ''}"`,
           `"${row.postcode || ''}"`,
-          `"${row.websiteUrl || ''}"`,
-          `"${row.phoneNumber || ''}"`,
-          `"${row.emailAddress || ''}"`,
-          `"${row.sourceUrl || ''}"`,
-          `"${row.dateOfScraping || ''}"`
+          `"${row.website_url || ''}"`,
+          `"${row.phone_number || ''}"`,
+          `"${row.email_address || ''}"`,
+          `"${row.source_url || ''}"`,
+          `"${row.date_of_scraping || ''}"`,
+          `"${row.rating || ''}"`,
+          `"${row.total_ratings || ''}"`
         ].join(",")
       )
     ].join("\n");
@@ -123,7 +156,7 @@ const SearchPage = () => {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `trade_contacts_${searchLocation}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `trade_contacts_${searchLocation.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -165,11 +198,11 @@ const SearchPage = () => {
               <span>Search Trade Contacts</span>
             </CardTitle>
             <CardDescription className="text-base">
-              Find construction and trade professionals within your target area
+              Find construction and trade professionals using Google Places API
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="location" className="text-sm font-medium flex items-center">
                   <MapPin className="h-4 w-4 mr-1 text-blue-600" />
@@ -177,7 +210,7 @@ const SearchPage = () => {
                 </Label>
                 <Input
                   id="location"
-                  placeholder="e.g., London, Manchester, Birmingham"
+                  placeholder="e.g., London, SW1A 1AA, Manchester"
                   value={searchLocation}
                   onChange={(e) => setSearchLocation(e.target.value)}
                   className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
@@ -185,23 +218,7 @@ const SearchPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="trade" className="text-sm font-medium">Trade Type</Label>
-                <Select value={selectedTrade} onValueChange={setSelectedTrade}>
-                  <SelectTrigger className="border-gray-300 focus:border-blue-500">
-                    <SelectValue placeholder="Select trade type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tradeTypes.map((trade) => (
-                      <SelectItem key={trade} value={trade}>
-                        {trade}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="radius" className="text-sm font-medium">Radius (miles)</Label>
+                <Label htmlFor="radius" className="text-sm font-medium">Radius</Label>
                 <Select value={radius} onValueChange={setRadius}>
                   <SelectTrigger className="border-gray-300 focus:border-blue-500">
                     <SelectValue />
@@ -216,6 +233,37 @@ const SearchPage = () => {
               </div>
             </div>
 
+            <div className="mt-6">
+              <Label className="text-sm font-medium mb-3 block">Select Trade Types</Label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {tradeTypes.map((trade) => (
+                  <div
+                    key={trade.value}
+                    onClick={() => handleTradeSelection(trade.value)}
+                    className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:scale-105 ${
+                      selectedTrades.includes(trade.value)
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-white hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{trade.label}</div>
+                  </div>
+                ))}
+              </div>
+              {selectedTrades.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedTrades.map(trade => {
+                    const tradeObj = tradeTypes.find(t => t.value === trade);
+                    return (
+                      <Badge key={trade} variant="secondary" className="bg-blue-100 text-blue-800">
+                        {tradeObj?.label}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-between items-center mt-6">
               <Button
                 onClick={handleSearch}
@@ -225,7 +273,7 @@ const SearchPage = () => {
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Searching...
+                    Searching Google Places...
                   </>
                 ) : (
                   <>
@@ -257,7 +305,7 @@ const SearchPage = () => {
                 Search Results ({searchResults.length})
               </CardTitle>
               <CardDescription>
-                Showing trade contacts for {selectedTrade} in {searchLocation} (within {radius} miles)
+                Showing trade contacts in {searchLocation} (within {radius} miles) - Data from Google Places API
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -273,10 +321,10 @@ const SearchPage = () => {
                       <TableHeader>
                         <TableRow className="bg-gray-50">
                           <TableHead className="font-semibold">Company</TableHead>
-                          <TableHead className="font-semibold">Contact</TableHead>
                           <TableHead className="font-semibold">Trade</TableHead>
                           <TableHead className="font-semibold">Location</TableHead>
                           <TableHead className="font-semibold">Contact Info</TableHead>
+                          <TableHead className="font-semibold">Rating</TableHead>
                           <TableHead className="font-semibold">Source</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -285,10 +333,10 @@ const SearchPage = () => {
                           <TableRow key={index} className="hover:bg-gray-50/50">
                             <TableCell className="font-medium">
                               <div>
-                                <div className="font-semibold text-gray-900">{contact.companyName}</div>
-                                {contact.websiteUrl && (
+                                <div className="font-semibold text-gray-900">{contact.company_name}</div>
+                                {contact.website_url && (
                                   <a 
-                                    href={contact.websiteUrl} 
+                                    href={contact.website_url} 
                                     target="_blank" 
                                     rel="noopener noreferrer"
                                     className="text-blue-600 text-sm hover:underline flex items-center mt-1"
@@ -300,40 +348,48 @@ const SearchPage = () => {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="text-gray-900">{contact.tradespersonName}</div>
-                            </TableCell>
-                            <TableCell>
                               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                {contact.primaryIndustry}
+                                {contact.primary_industry}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               <div className="text-sm">
-                                <div className="text-gray-900">{contact.fullAddress}</div>
-                                <div className="text-gray-500 mt-1 font-mono">{contact.postcode}</div>
+                                <div className="text-gray-900">{contact.full_address}</div>
+                                {contact.postcode && (
+                                  <div className="text-gray-500 mt-1 font-mono">{contact.postcode}</div>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                {contact.phoneNumber && (
+                                {contact.phone_number && (
                                   <div className="flex items-center text-sm text-gray-600">
                                     <Phone className="h-3 w-3 mr-1" />
-                                    {contact.phoneNumber}
+                                    {contact.phone_number}
                                   </div>
                                 )}
-                                {contact.emailAddress && (
+                                {contact.email_address && (
                                   <div className="flex items-center text-sm text-gray-600">
                                     <Mail className="h-3 w-3 mr-1" />
-                                    {contact.emailAddress}
+                                    {contact.email_address}
                                   </div>
                                 )}
                               </div>
                             </TableCell>
                             <TableCell>
+                              {contact.rating && (
+                                <div className="flex items-center text-sm">
+                                  <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                  <span className="font-medium">{contact.rating}</span>
+                                  {contact.total_ratings && (
+                                    <span className="text-gray-500 ml-1">({contact.total_ratings})</span>
+                                  )}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Badge variant="outline" className="text-xs">
-                                {contact.sourceUrl?.includes('google') ? 'Google Maps' : 
-                                 contact.sourceUrl?.includes('checkatrade') ? 'Checkatrade' : 
-                                 contact.sourceUrl?.includes('mybuilder') ? 'MyBuilder' : 'Directory'}
+                                Google Places
                               </Badge>
                             </TableCell>
                           </TableRow>
@@ -348,42 +404,53 @@ const SearchPage = () => {
                     {searchResults.map((contact, index) => (
                       <Card key={index} className="hover:shadow-lg transition-shadow">
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-lg text-gray-900">{contact.companyName}</CardTitle>
-                          <CardDescription className="text-gray-600">{contact.tradespersonName}</CardDescription>
+                          <CardTitle className="text-lg text-gray-900">{contact.company_name}</CardTitle>
+                          <div className="flex items-center justify-between">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                              {contact.primary_industry}
+                            </Badge>
+                            {contact.rating && (
+                              <div className="flex items-center text-sm">
+                                <Star className="h-4 w-4 text-yellow-500 mr-1" />
+                                <span className="font-medium">{contact.rating}</span>
+                                {contact.total_ratings && (
+                                  <span className="text-gray-500 ml-1">({contact.total_ratings})</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                            {contact.primaryIndustry}
-                          </Badge>
-                          
+                        <CardContent className="space-y-3">                          
                           <div className="space-y-2 text-sm">
                             <div className="flex items-start">
                               <MapPin className="h-4 w-4 mr-2 mt-0.5 text-gray-500 flex-shrink-0" />
                               <div>
-                                <div>{contact.fullAddress}</div>
-                                <div className="font-mono text-gray-500">{contact.postcode}</div>
+                                <div>{contact.full_address}</div>
+                                {contact.postcode && (
+                                  <div className="font-mono text-gray-500">{contact.postcode}</div>
+                                )}
                               </div>
                             </div>
                             
-                            {contact.phoneNumber && (
+                            {contact.phone_number && (
                               <div className="flex items-center">
                                 <Phone className="h-4 w-4 mr-2 text-gray-500" />
-                                <span>{contact.phoneNumber}</span>
+                                <span>{contact.phone_number}</span>
                               </div>
                             )}
                             
-                            {contact.emailAddress && (
+                            {contact.email_address && (
                               <div className="flex items-center">
                                 <Mail className="h-4 w-4 mr-2 text-gray-500" />
-                                <span className="text-blue-600">{contact.emailAddress}</span>
+                                <span className="text-blue-600">{contact.email_address}</span>
                               </div>
                             )}
                             
-                            {contact.websiteUrl && (
+                            {contact.website_url && (
                               <div className="flex items-center">
                                 <Globe className="h-4 w-4 mr-2 text-gray-500" />
                                 <a 
-                                  href={contact.websiteUrl} 
+                                  href={contact.website_url} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                   className="text-blue-600 hover:underline"
