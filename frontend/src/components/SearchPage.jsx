@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Search, Download, MapPin, Phone, Mail, Globe, Building2, Star } from "lucide-react";
+import { Search, Download, MapPin, Phone, Mail, Globe, Building2, Star, Shield, CheckCircle, AlertCircle, Users } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 import axios from "axios";
 
@@ -18,6 +18,7 @@ const SearchPage = () => {
   const [searchLocation, setSearchLocation] = useState("");
   const [selectedTrades, setSelectedTrades] = useState([]);
   const [radius, setRadius] = useState("20");
+  const [enhanceWithCompaniesHouse, setEnhanceWithCompaniesHouse] = useState(true);
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
@@ -79,7 +80,8 @@ const SearchPage = () => {
         location: searchLocation,
         radius: radiusInMeters,
         business_types: selectedTrades,
-        max_results: 50
+        max_results: 50,
+        enhance_with_companies_house: enhanceWithCompaniesHouse
       };
 
       const response = await axios.post(`${API}/search-businesses`, searchData);
@@ -88,9 +90,11 @@ const SearchPage = () => {
         setSearchResults(response.data.businesses);
         setSearchPerformed(true);
         
+        const verifiedCount = response.data.businesses.filter(b => b.verification_status === 'verified').length;
+        
         toast({
           title: "Search Complete",
-          description: `Found ${response.data.businesses.length} businesses in ${searchLocation}`,
+          description: `Found ${response.data.businesses.length} businesses (${verifiedCount} verified) in ${searchLocation}`,
         });
       } else {
         throw new Error("Search failed");
@@ -129,7 +133,13 @@ const SearchPage = () => {
       "Source URL",
       "Date of Scraping",
       "Rating",
-      "Total Ratings"
+      "Total Ratings",
+      "Verification Status",
+      "Companies House Number",
+      "Official Name",
+      "Company Status",
+      "SIC Codes",
+      "Directors Count"
     ];
 
     const csvContent = [
@@ -147,7 +157,13 @@ const SearchPage = () => {
           `"${row.source_url || ''}"`,
           `"${row.date_of_scraping || ''}"`,
           `"${row.rating || ''}"`,
-          `"${row.total_ratings || ''}"`
+          `"${row.total_ratings || ''}"`,
+          `"${row.verification_status || ''}"`,
+          `"${row.companies_house_data?.company_number || ''}"`,
+          `"${row.companies_house_data?.official_name || ''}"`,
+          `"${row.companies_house_data?.company_status || ''}"`,
+          `"${row.companies_house_data?.sic_codes?.join('; ') || ''}"`,
+          `"${row.companies_house_data?.directors?.length || ''}"`
         ].join(",")
       )
     ].join("\n");
@@ -168,6 +184,28 @@ const SearchPage = () => {
     });
   };
 
+  const getVerificationIcon = (status) => {
+    switch (status) {
+      case 'verified':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'inactive':
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+      default:
+        return <Shield className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const getVerificationBadge = (status) => {
+    switch (status) {
+      case 'verified':
+        return <Badge className="bg-green-100 text-green-800 border-green-300">Verified</Badge>;
+      case 'inactive':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Inactive</Badge>;
+      default:
+        return <Badge variant="outline" className="text-gray-600">Unverified</Badge>;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
       {/* Header */}
@@ -182,7 +220,7 @@ const SearchPage = () => {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                   UK Trade Contact Intelligence
                 </h1>
-                <p className="text-sm text-gray-600 mt-1">Find construction professionals for your business</p>
+                <p className="text-sm text-gray-600 mt-1">Enhanced with Companies House verification</p>
               </div>
             </div>
           </div>
@@ -198,7 +236,7 @@ const SearchPage = () => {
               <span>Search Trade Contacts</span>
             </CardTitle>
             <CardDescription className="text-base">
-              Find construction and trade professionals using Google Places API
+              Find construction and trade professionals with official business verification
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6">
@@ -264,6 +302,24 @@ const SearchPage = () => {
               )}
             </div>
 
+            <div className="mt-6">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="enhance-ch"
+                  checked={enhanceWithCompaniesHouse}
+                  onChange={(e) => setEnhanceWithCompaniesHouse(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Label htmlFor="enhance-ch" className="text-sm">
+                  Enhance with Companies House data (recommended)
+                </Label>
+              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                Adds official business verification, director information, and company status
+              </p>
+            </div>
+
             <div className="flex justify-between items-center mt-6">
               <Button
                 onClick={handleSearch}
@@ -273,7 +329,7 @@ const SearchPage = () => {
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Searching Google Places...
+                    Searching with verification...
                   </>
                 ) : (
                   <>
@@ -305,7 +361,7 @@ const SearchPage = () => {
                 Search Results ({searchResults.length})
               </CardTitle>
               <CardDescription>
-                Showing trade contacts in {searchLocation} (within {radius} miles) - Data from Google Places API
+                Showing trade contacts in {searchLocation} (within {radius} miles) - Enhanced with Companies House verification
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -325,7 +381,7 @@ const SearchPage = () => {
                           <TableHead className="font-semibold">Location</TableHead>
                           <TableHead className="font-semibold">Contact Info</TableHead>
                           <TableHead className="font-semibold">Rating</TableHead>
-                          <TableHead className="font-semibold">Source</TableHead>
+                          <TableHead className="font-semibold">Verification</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -333,7 +389,18 @@ const SearchPage = () => {
                           <TableRow key={index} className="hover:bg-gray-50/50">
                             <TableCell className="font-medium">
                               <div>
-                                <div className="font-semibold text-gray-900">{contact.company_name}</div>
+                                <div className="font-semibold text-gray-900 flex items-center">
+                                  {contact.company_name}
+                                  <div className="ml-2">
+                                    {getVerificationIcon(contact.verification_status)}
+                                  </div>
+                                </div>
+                                {contact.companies_house_data?.official_name && 
+                                 contact.companies_house_data.official_name !== contact.company_name && (
+                                  <div className="text-xs text-gray-600 mt-1">
+                                    Official: {contact.companies_house_data.official_name}
+                                  </div>
+                                )}
                                 {contact.website_url && (
                                   <a 
                                     href={contact.website_url} 
@@ -388,9 +455,14 @@ const SearchPage = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                Google Places
-                              </Badge>
+                              <div className="space-y-1">
+                                {getVerificationBadge(contact.verification_status)}
+                                {contact.companies_house_data?.company_number && (
+                                  <div className="text-xs text-gray-600">
+                                    CH: {contact.companies_house_data.company_number}
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -404,7 +476,10 @@ const SearchPage = () => {
                     {searchResults.map((contact, index) => (
                       <Card key={index} className="hover:shadow-lg transition-shadow">
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-lg text-gray-900">{contact.company_name}</CardTitle>
+                          <CardTitle className="text-lg text-gray-900 flex items-center justify-between">
+                            <span>{contact.company_name}</span>
+                            {getVerificationIcon(contact.verification_status)}
+                          </CardTitle>
                           <div className="flex items-center justify-between">
                             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                               {contact.primary_industry}
@@ -420,7 +495,34 @@ const SearchPage = () => {
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-3">                          
+                        <CardContent className="space-y-3">
+                          {/* Verification Status */}
+                          <div className="flex items-center justify-between">
+                            {getVerificationBadge(contact.verification_status)}
+                            {contact.companies_house_data?.directors && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Users className="h-3 w-3 mr-1" />
+                                {contact.companies_house_data.directors.length} directors
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Companies House Info */}
+                          {contact.companies_house_data && (
+                            <div className="bg-gray-50 p-2 rounded text-xs">
+                              <div className="font-medium text-gray-800">Companies House Data:</div>
+                              {contact.companies_house_data.company_number && (
+                                <div>Number: {contact.companies_house_data.company_number}</div>
+                              )}
+                              {contact.companies_house_data.company_status && (
+                                <div>Status: {contact.companies_house_data.company_status}</div>
+                              )}
+                              {contact.companies_house_data.sic_codes?.length > 0 && (
+                                <div>SIC: {contact.companies_house_data.sic_codes.slice(0, 2).join(', ')}</div>
+                              )}
+                            </div>
+                          )}
+                          
                           <div className="space-y-2 text-sm">
                             <div className="flex items-start">
                               <MapPin className="h-4 w-4 mr-2 mt-0.5 text-gray-500 flex-shrink-0" />
