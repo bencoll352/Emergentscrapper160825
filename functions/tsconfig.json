@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2020",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "declaration": false,
+    "strict": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "outDir": "lib",
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "compileOnSave": true,
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib"
+  ]
+}
